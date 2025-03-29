@@ -8,11 +8,11 @@ type keyMap struct {
 	scrollToBottom key.Binding
 	halfPageUp     key.Binding
 	halfPageDown   key.Binding
+	scrollRight    key.Binding
+	scrollLeft     key.Binding
 	down           key.Binding
 	up             key.Binding
 	enter          key.Binding
-	expand         key.Binding
-	shrink         key.Binding
 }
 
 func defaultKeyMap() keyMap {
@@ -37,6 +37,14 @@ func defaultKeyMap() keyMap {
 			key.WithKeys("d", "ctrl+d"),
 			key.WithHelp("d/^d", "½ page down"),
 		),
+		scrollRight: key.NewBinding(
+			key.WithKeys("right", "l"),
+			key.WithHelp("right/l", "scroll right"),
+		),
+		scrollLeft: key.NewBinding(
+			key.WithKeys("left", "h"),
+			key.WithHelp("left/h", "scroll left"),
+		),
 		down: key.NewBinding(
 			key.WithKeys("down", "j"),
 			key.WithHelp("down/j", "down"),
@@ -46,16 +54,8 @@ func defaultKeyMap() keyMap {
 			key.WithHelp("up/k", "up"),
 		),
 		enter: key.NewBinding(
-			key.WithKeys("enter"),
-			key.WithHelp("enter", "expand/collapse"),
-		),
-		expand: key.NewBinding(
-			key.WithKeys("right", "l"),
-			key.WithHelp("right/l", "expand"),
-		),
-		shrink: key.NewBinding(
-			key.WithKeys("left", "h"),
-			key.WithHelp("left/h", "shrink"),
+			key.WithKeys("enter", "tab"),
+			key.WithHelp("enter/tab", "expand/collapse"),
 		),
 	}
 }

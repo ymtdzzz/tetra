@@ -9,6 +9,7 @@ import (
 	"github.com/charmbracelet/bubbles/textinput"
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 	"github.com/ymtdzzz/tetra/adapter"
 	"github.com/ymtdzzz/tetra/components"
 )
@@ -119,9 +120,22 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	)
 
 	if m.textInput.Focused() {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+			case msg.String() == "enter":
+				m.query = m.textInput.Value()
+				m.updateView(true)
+				m.textInput.Blur()
+			case msg.String() == "esc":
+				m.textInput.Blur()
+			}
+		}
+
 		m.textInput, cmd = m.textInput.Update(msg)
+		cmds = append(cmds, cmd)
 		m.updateView(false)
-		return m, cmd
+		return m, tea.Batch(cmds...)
 	}
 
 	switch msg := msg.(type) {
@@ -142,14 +156,14 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			if m.Cursor < 0 {
 				m.Cursor = 0
 			}
-			m.viewport.HalfViewUp()
+			m.viewport.HalfPageUp()
 			m.updateView(false)
 		case key.Matches(msg, m.keyMap.halfPageDown):
 			m.Cursor += m.viewport.Height / 2
 			if m.Cursor >= len(m.FlattenNodes) {
 				m.Cursor = len(m.FlattenNodes) - 1
 			}
-			m.viewport.HalfViewDown()
+			m.viewport.HalfPageDown()
 			m.updateView(false)
 		case key.Matches(msg, m.keyMap.down):
 			if m.Cursor < len(m.FlattenNodes)-1 {
@@ -158,6 +172,12 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 					m.viewport.SetYOffset(m.viewport.YOffset + 1)
 				}
 			}
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.scrollRight):
+			m.viewport.ScrollRight(1)
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.scrollLeft):
+			m.viewport.ScrollLeft(1)
 			m.updateView(false)
 		case key.Matches(msg, m.keyMap.up):
 			if m.Cursor > 0 {
@@ -174,30 +194,18 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				cmds = append(cmds, m.handleExpand(node))
 			}
 			m.updateView(true)
-		case key.Matches(msg, m.keyMap.expand):
-			node := m.FlattenNodes[m.Cursor]
-			if !node.Expanded {
-				node.Expanded = true
-				cmds = append(cmds, m.handleExpand(node))
-				m.updateView(true)
-			}
-		case key.Matches(msg, m.keyMap.shrink):
-			node := m.FlattenNodes[m.Cursor]
-			if node.Expanded {
-				node.Expanded = false
-				m.updateView(true)
-			}
 		}
-	case tea.WindowSizeMsg:
-		if !m.ready {
-			m.viewport = viewport.New(msg.Width, msg.Height)
-			m.viewport.KeyMap = viewport.KeyMap{}
-			m.viewport.SetContent(m.view())
-			m.ready = true
-		} else {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height
-		}
+	// case tea.WindowSizeMsg:
+	// 	if !m.ready {
+	// 		m.viewport = viewport.New(msg.Width, msg.Height)
+	// 		m.viewport.KeyMap = viewport.KeyMap{}
+	// 		m.viewport.SetContent(m.view())
+	// 		m.viewport.Height = msg.Height - 2
+	// 		m.ready = true
+	// 	} else {
+	// 		m.viewport.Width = msg.Width
+	// 		m.viewport.Height = msg.Height - 2
+	// 	}
 	case connectionOpenMsg:
 		// TODO: Error handling
 		cmds = append(cmds, func() tea.Msg {
@@ -331,7 +339,8 @@ func (m *Model) handleExpand(node *TreeNode) tea.Cmd {
 			}
 		}
 	case NODE_TYPE_TABLE_FOLDER:
-		if !node.conn.Adapter.Status().TableLoaded {
+		ok, loaded := node.conn.Adapter.Status().TableLoaded[node.Parent.Label]
+		if !ok || !loaded {
 			node.Children[0].loading = true
 			return func() tea.Msg {
 				return listTablesMsg{
@@ -345,6 +354,19 @@ func (m *Model) handleExpand(node *TreeNode) tea.Cmd {
 	return nil
 }
 
+func (m *Model) UpdateLayout(width, height int) {
+	if !m.ready {
+		m.viewport = viewport.New(width, height)
+		m.viewport.KeyMap = viewport.KeyMap{}
+		m.viewport.SetContent(m.view())
+		m.viewport.Height = height - 2
+		m.ready = true
+	} else {
+		m.viewport.Width = width
+		m.viewport.Height = height - 2
+	}
+}
+
 func (m *Model) updateView(flatten bool) {
 	if flatten {
 		m.FlattenNodes = flattenAll(m.Roots, m.query)
@@ -354,8 +376,6 @@ func (m *Model) updateView(flatten bool) {
 
 func (m Model) view() string {
 	var b strings.Builder
-	b.WriteString("Tree View (q to quit)\n")
-	b.WriteString(fmt.Sprintf("%s\n", m.textInput.View()))
 	for i, n := range m.FlattenNodes {
 		prefix := "  "
 		if len(n.Children) > 0 {
@@ -390,5 +410,10 @@ func (m Model) View() string {
 		return "\n Initializing..."
 	}
 
-	return m.viewport.View()
+	return lipgloss.JoinVertical(
+		0,
+		"Tree View (q to quit)",
+		m.textInput.View(),
+		m.viewport.View(),
+	)
 }

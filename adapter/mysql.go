@@ -33,7 +33,9 @@ type MySQLAdapter struct {
 func NewMySQLAdapter(config *MySQLConfig) (*MySQLAdapter, error) {
 	return &MySQLAdapter{
 		config: config,
-		status: &Status{},
+		status: &Status{
+			TableLoaded: map[string]bool{},
+		},
 	}, nil
 }
 
@@ -90,7 +92,7 @@ func (a *MySQLAdapter) ListTables(database string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	a.status.TableLoaded = true
+	a.status.TableLoaded[database] = true
 
 	return tables, nil
 }

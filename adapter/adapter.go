@@ -3,7 +3,7 @@ package adapter
 type Status struct {
 	Opened         bool
 	DatabaseLoaded bool
-	TableLoaded    bool
+	TableLoaded    map[string]bool
 }
 
 type ColumnInfo struct {
