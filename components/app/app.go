@@ -1,13 +1,18 @@
 package app
 
 import (
-	"github.com/charmbracelet/bubbles/key"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
+	"strings"
+
+	"github.com/acarl005/stripansi"
 	"github.com/ymtdzzz/tetra/adapter"
 	"github.com/ymtdzzz/tetra/components/editor"
 	"github.com/ymtdzzz/tetra/components/tree"
 	"github.com/ymtdzzz/tetra/config"
+
+	"github.com/charmbracelet/bubbles/key"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/mattn/go-runewidth"
 )
 
 type Model struct {
@@ -25,11 +30,14 @@ func New() (Model, error) {
 	}
 	conns := adapter.NewDBConnections(config)
 
+	tree := tree.New(conns)
+	tree.Focus(true)
+
 	return Model{
 		styles:  defaultStyles(),
 		keyMap:  defaultKeyMap(),
 		dbConns: conns,
-		tree:    tree.New(conns),
+		tree:    tree,
 		editor:  editor.New(),
 	}, nil
 }
@@ -75,11 +83,36 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
+	m.styles.sidebar = focusedStyle(m.styles.sidebar, m.tree.Focused())
+
 	sidebar := m.styles.sidebar.Render(m.tree.View())
+	sidebar = renderWithTitle(sidebar, "DB Navigator [1]", m.styles.sidebar)
 	mainTop := m.styles.mainTop.Render(m.editor.View())
 	mainBottom := m.styles.mainBottom.Render("Main Bottom Panel")
 	main := lipgloss.JoinVertical(lipgloss.Left, mainTop, mainBottom)
 
 	layout := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, main)
 	return layout
+}
+
+func renderWithTitle(view, title string, style lipgloss.Style) string {
+	lines := strings.Split(view, "\n")
+	if len(lines) == 0 {
+		return view
+	}
+
+	titleStyle := lipgloss.NewStyle().
+		Foreground(style.GetBorderTopForeground())
+
+	plain := stripansi.Strip(lines[0])
+	var b strings.Builder
+	titleWidth := runewidth.StringWidth(title) + 2
+	for i := 0; i < titleWidth; i++ {
+		b.WriteString(style.GetBorderStyle().Top)
+	}
+	replaced := strings.Replace(plain, b.String(), " "+title+" ", 1)
+
+	lines[0] = titleStyle.Render(replaced)
+
+	return strings.Join(lines, "\n")
 }

@@ -27,3 +27,11 @@ func defaultStyles() styles {
 		mainBottom: mainBottom,
 	}
 }
+
+func focusedStyle(style lipgloss.Style, focused bool) lipgloss.Style {
+	if !focused {
+		return style
+	}
+	newStyle := style
+	return newStyle.BorderForeground(lipgloss.Color("#FFCC00"))
+}

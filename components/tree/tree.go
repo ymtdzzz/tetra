@@ -46,6 +46,7 @@ type Model struct {
 	ready        bool
 	textInput    textinput.Model
 	query        string
+	focus        bool
 }
 
 func New(conns adapter.DBConnections) Model {
@@ -78,6 +79,14 @@ func New(conns adapter.DBConnections) Model {
 	}
 	m.updateView(true)
 	return m
+}
+
+func (m *Model) Focus(focus bool) {
+	m.focus = focus
+}
+
+func (m Model) Focused() bool {
+	return m.focus
 }
 
 func (m Model) Init() tea.Cmd {
@@ -119,6 +128,11 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		cmd  tea.Cmd
 	)
 
+	m.spinner, cmd = m.spinner.Update(msg)
+	cmds = append(cmds, cmd)
+	m.viewport, cmd = m.viewport.Update(msg)
+	cmds = append(cmds, cmd)
+
 	if m.textInput.Focused() {
 		switch msg := msg.(type) {
 		case tea.KeyMsg:
@@ -140,6 +154,10 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
+		if !m.focus {
+			return m, tea.Batch(cmds...)
+		}
+
 		switch {
 		case key.Matches(msg, m.keyMap.focusSearch):
 			cmds = append(cmds, m.textInput.Focus())
@@ -195,17 +213,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			}
 			m.updateView(true)
 		}
-	// case tea.WindowSizeMsg:
-	// 	if !m.ready {
-	// 		m.viewport = viewport.New(msg.Width, msg.Height)
-	// 		m.viewport.KeyMap = viewport.KeyMap{}
-	// 		m.viewport.SetContent(m.view())
-	// 		m.viewport.Height = msg.Height - 2
-	// 		m.ready = true
-	// 	} else {
-	// 		m.viewport.Width = msg.Width
-	// 		m.viewport.Height = msg.Height - 2
-	// 	}
 	case connectionOpenMsg:
 		// TODO: Error handling
 		cmds = append(cmds, func() tea.Msg {
@@ -300,11 +307,6 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		m.updateView(true)
 	}
 
-	m.spinner, cmd = m.spinner.Update(msg)
-	cmds = append(cmds, cmd)
-	m.viewport, cmd = m.viewport.Update(msg)
-	cmds = append(cmds, cmd)
-
 	return m, tea.Batch(cmds...)
 }
 
@@ -359,11 +361,11 @@ func (m *Model) UpdateLayout(width, height int) {
 		m.viewport = viewport.New(width, height)
 		m.viewport.KeyMap = viewport.KeyMap{}
 		m.viewport.SetContent(m.view())
-		m.viewport.Height = height - 2
+		m.viewport.Height = height - 1
 		m.ready = true
 	} else {
 		m.viewport.Width = width
-		m.viewport.Height = height - 2
+		m.viewport.Height = height - 1
 	}
 }
 
@@ -377,6 +379,7 @@ func (m *Model) updateView(flatten bool) {
 func (m Model) view() string {
 	var b strings.Builder
 	for i, n := range m.FlattenNodes {
+		style := lipgloss.NewStyle()
 		prefix := "  "
 		if len(n.Children) > 0 {
 			if n.Expanded {
@@ -386,9 +389,8 @@ func (m Model) view() string {
 			}
 		}
 
-		cursor := "  "
 		if i == m.Cursor {
-			cursor = "> "
+			style = components.FocusedText
 		}
 
 		padding := ""
@@ -397,10 +399,11 @@ func (m Model) view() string {
 		}
 
 		if n.loading {
-			b.WriteString(fmt.Sprintf("%s%s%s%c %s\n", cursor, padding, prefix, n.Icon, m.spinner.View()))
+			b.WriteString(style.Render(fmt.Sprintf("%s%s%c %s", padding, prefix, n.Icon, m.spinner.View())))
 		} else {
-			b.WriteString(fmt.Sprintf("%s%s%s%c %s\n", cursor, padding, prefix, n.Icon, n.Label))
+			b.WriteString(style.Render(fmt.Sprintf("%s%s%c %s", padding, prefix, n.Icon, n.Label)))
 		}
+		b.WriteString("\n")
 	}
 	return b.String()
 }
@@ -412,7 +415,6 @@ func (m Model) View() string {
 
 	return lipgloss.JoinVertical(
 		0,
-		"Tree View (q to quit)",
 		m.textInput.View(),
 		m.viewport.View(),
 	)
