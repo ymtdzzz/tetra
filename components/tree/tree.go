@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ymtdzzz/tetra/adapter"
 	"github.com/ymtdzzz/tetra/components"
+	"github.com/ymtdzzz/tetra/components/editor"
 )
 
 const (
@@ -133,86 +134,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 	m.viewport, cmd = m.viewport.Update(msg)
 	cmds = append(cmds, cmd)
 
-	if m.textInput.Focused() {
-		switch msg := msg.(type) {
-		case tea.KeyMsg:
-			switch {
-			case msg.String() == "enter":
-				m.query = m.textInput.Value()
-				m.updateView(true)
-				m.textInput.Blur()
-			case msg.String() == "esc":
-				m.textInput.Blur()
-			}
-		}
-
-		m.textInput, cmd = m.textInput.Update(msg)
-		cmds = append(cmds, cmd)
-		m.updateView(false)
-		return m, tea.Batch(cmds...)
-	}
-
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		if !m.focus {
-			return m, tea.Batch(cmds...)
-		}
-
-		switch {
-		case key.Matches(msg, m.keyMap.focusSearch):
-			cmds = append(cmds, m.textInput.Focus())
-		case key.Matches(msg, m.keyMap.scrollToTop):
-			m.Cursor = 0
-			m.viewport.GotoTop()
-			m.updateView(false)
-		case key.Matches(msg, m.keyMap.scrollToBottom):
-			m.Cursor = len(m.FlattenNodes) - 1
-			m.viewport.GotoBottom()
-			m.updateView(false)
-		case key.Matches(msg, m.keyMap.halfPageUp):
-			m.Cursor -= m.viewport.Height / 2
-			if m.Cursor < 0 {
-				m.Cursor = 0
-			}
-			m.viewport.HalfPageUp()
-			m.updateView(false)
-		case key.Matches(msg, m.keyMap.halfPageDown):
-			m.Cursor += m.viewport.Height / 2
-			if m.Cursor >= len(m.FlattenNodes) {
-				m.Cursor = len(m.FlattenNodes) - 1
-			}
-			m.viewport.HalfPageDown()
-			m.updateView(false)
-		case key.Matches(msg, m.keyMap.down):
-			if m.Cursor < len(m.FlattenNodes)-1 {
-				m.Cursor++
-				if m.Cursor >= m.viewport.Height+m.viewport.YOffset-5 {
-					m.viewport.SetYOffset(m.viewport.YOffset + 1)
-				}
-			}
-			m.updateView(false)
-		case key.Matches(msg, m.keyMap.scrollRight):
-			m.viewport.ScrollRight(1)
-			m.updateView(false)
-		case key.Matches(msg, m.keyMap.scrollLeft):
-			m.viewport.ScrollLeft(1)
-			m.updateView(false)
-		case key.Matches(msg, m.keyMap.up):
-			if m.Cursor > 0 {
-				m.Cursor--
-				if m.Cursor < m.viewport.YOffset+1 {
-					m.viewport.SetYOffset(m.viewport.YOffset - 1)
-				}
-			}
-			m.updateView(false)
-		case key.Matches(msg, m.keyMap.enter):
-			node := m.FlattenNodes[m.Cursor]
-			node.Expanded = !node.Expanded
-			if node.Expanded {
-				cmds = append(cmds, m.handleExpand(node))
-			}
-			m.updateView(true)
-		}
 	case connectionOpenMsg:
 		// TODO: Error handling
 		cmds = append(cmds, func() tea.Msg {
@@ -305,6 +227,100 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 		}
 		node.Children = tableNodes
 		m.updateView(true)
+	}
+
+	if !m.focus {
+		return m, tea.Batch(cmds...)
+	}
+
+	if m.textInput.Focused() {
+		switch msg := msg.(type) {
+		case tea.KeyMsg:
+			switch {
+			case msg.String() == "enter":
+				m.query = m.textInput.Value()
+				m.updateView(true)
+				m.textInput.Blur()
+			case msg.String() == "esc":
+				m.textInput.Blur()
+			}
+		}
+
+		m.textInput, cmd = m.textInput.Update(msg)
+		cmds = append(cmds, cmd)
+		m.updateView(false)
+		return m, tea.Batch(cmds...)
+	}
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keyMap.focusSearch):
+			cmds = append(cmds, m.textInput.Focus())
+		case key.Matches(msg, m.keyMap.scrollToTop):
+			m.Cursor = 0
+			m.viewport.GotoTop()
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.scrollToBottom):
+			m.Cursor = len(m.FlattenNodes) - 1
+			m.viewport.GotoBottom()
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.halfPageUp):
+			m.Cursor -= m.viewport.Height / 2
+			if m.Cursor < 0 {
+				m.Cursor = 0
+			}
+			m.viewport.HalfPageUp()
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.halfPageDown):
+			m.Cursor += m.viewport.Height / 2
+			if m.Cursor >= len(m.FlattenNodes) {
+				m.Cursor = len(m.FlattenNodes) - 1
+			}
+			m.viewport.HalfPageDown()
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.down):
+			if m.Cursor < len(m.FlattenNodes)-1 {
+				m.Cursor++
+				if m.Cursor >= m.viewport.Height+m.viewport.YOffset-5 {
+					m.viewport.SetYOffset(m.viewport.YOffset + 1)
+				}
+			}
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.scrollRight):
+			m.viewport.ScrollRight(1)
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.scrollLeft):
+			m.viewport.ScrollLeft(1)
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.up):
+			if m.Cursor > 0 {
+				m.Cursor--
+				if m.Cursor < m.viewport.YOffset+1 {
+					m.viewport.SetYOffset(m.viewport.YOffset - 1)
+				}
+			}
+			m.updateView(false)
+		case key.Matches(msg, m.keyMap.enter):
+			node := m.FlattenNodes[m.Cursor]
+			node.Expanded = !node.Expanded
+			if node.Expanded {
+				cmds = append(cmds, m.handleExpand(node))
+			}
+			m.updateView(true)
+		case key.Matches(msg, m.keyMap.selectNode):
+			node := m.FlattenNodes[m.Cursor]
+			cmds = append(cmds, tea.Batch(
+				func() tea.Msg {
+					return editor.SetConnMsg{
+						Conn: node.conn,
+					}
+				},
+				func() tea.Msg {
+					return components.FocusPaneEditorMsg{}
+				},
+			))
+		}
 	}
 
 	return m, tea.Batch(cmds...)

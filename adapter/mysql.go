@@ -1,7 +1,9 @@
 package adapter
 
 import (
+	"context"
 	"fmt"
+	"strings"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
@@ -95,6 +97,41 @@ func (a *MySQLAdapter) ListTables(database string) ([]string, error) {
 	a.status.TableLoaded[database] = true
 
 	return tables, nil
+}
+
+func (a *MySQLAdapter) RunQuery(ctx context.Context, query string) (any, error) {
+	lowerQuery := strings.TrimSpace(strings.ToLower(query))
+	// TODO: Support more than just SELECT and DML
+	if strings.HasPrefix(lowerQuery, "select") {
+		rows, err := a.db.QueryxContext(ctx, query)
+		if err != nil {
+			return nil, err
+		}
+		defer rows.Close()
+
+		results := []map[string]any{}
+		for rows.Next() {
+			row := map[string]any{}
+			if err := rows.MapScan(row); err != nil {
+				return nil, err
+			}
+			results = append(results, row)
+		}
+
+		return results, nil
+	}
+
+	res, err := a.db.ExecContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+
+	return fmt.Sprintf("Query OK. %d rows affected.", affected), nil
 }
 
 // func (a *MySQLAdapter) ListTables() (map[string]TableInfo, error) {

@@ -13,8 +13,8 @@ var version = "unknown"
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:     "lazypkg",
-		Short:   "A TUI package management application across package managers",
+		Use:     "tetra",
+		Short:   "A TUI SQL IDE",
 		Version: version,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m, err := app.New()

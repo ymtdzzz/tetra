@@ -5,7 +5,9 @@ import (
 
 	"github.com/acarl005/stripansi"
 	"github.com/ymtdzzz/tetra/adapter"
+	"github.com/ymtdzzz/tetra/components"
 	"github.com/ymtdzzz/tetra/components/editor"
+	"github.com/ymtdzzz/tetra/components/result"
 	"github.com/ymtdzzz/tetra/components/tree"
 	"github.com/ymtdzzz/tetra/config"
 
@@ -15,12 +17,18 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
+const (
+	PANE_DB_NAVIGATOR = iota
+	PANE_EDITOR
+)
+
 type Model struct {
 	styles  styles
 	keyMap  keyMap
 	dbConns adapter.DBConnections
 	tree    tree.Model
 	editor  editor.Model
+	result  result.Model
 }
 
 func New() (Model, error) {
@@ -39,6 +47,7 @@ func New() (Model, error) {
 		dbConns: conns,
 		tree:    tree,
 		editor:  editor.New(),
+		result:  result.New(),
 	}, nil
 }
 
@@ -47,15 +56,30 @@ func (m Model) Close() error {
 }
 
 func (m Model) Init() tea.Cmd {
-	return m.tree.Init()
+	return tea.Batch(
+		m.tree.Init(),
+		m.editor.Init(),
+		m.result.Init(),
+	)
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var (
+		cmd  tea.Cmd
+		cmds []tea.Cmd
+	)
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch {
 		case key.Matches(msg, m.keyMap.quit):
 			return m, tea.Quit
+		case key.Matches(msg, m.keyMap.focusToDBNavi):
+			m.focusPane(PANE_DB_NAVIGATOR)
+			return m, nil
+		case key.Matches(msg, m.keyMap.focusToEditor):
+			m.focusPane(PANE_EDITOR)
+			return m, nil
 		}
 	case tea.WindowSizeMsg:
 		height, width := msg.Height, msg.Width
@@ -64,35 +88,55 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		mainTopHeight := height / 2
 		mainBottomHeight := height - mainTopHeight
 
-		m.styles.mainTop = m.styles.mainTop.
-			Width(mainWidth - m.styles.mainTop.GetHorizontalFrameSize()).
-			Height(mainTopHeight - m.styles.mainTop.GetVerticalFrameSize())
-		m.styles.mainBottom = m.styles.mainBottom.
-			Width(mainWidth - m.styles.mainBottom.GetHorizontalFrameSize()).
-			Height(mainBottomHeight - m.styles.mainBottom.GetVerticalFrameSize())
-
 		m.tree.UpdateLayout(
 			sidebarWidth-m.styles.sidebar.GetHorizontalFrameSize(),
 			height-m.styles.sidebar.GetVerticalFrameSize(),
 		)
+		m.editor.UpdateLayout(
+			mainWidth-m.styles.mainTop.GetHorizontalFrameSize(),
+			mainTopHeight-m.styles.mainTop.GetVerticalFrameSize(),
+		)
+		m.result.UpdateLayout(
+			mainWidth-m.styles.mainBottom.GetHorizontalFrameSize(),
+			mainBottomHeight-m.styles.mainBottom.GetVerticalFrameSize(),
+		)
+	case components.FocusPaneEditorMsg:
+		m.focusPane(PANE_EDITOR)
 	}
-	var cmd tea.Cmd
 	m.tree, cmd = m.tree.Update(msg)
+	cmds = append(cmds, cmd)
+	m.editor, cmd = m.editor.Update(msg)
+	cmds = append(cmds, cmd)
+	m.result, cmd = m.result.Update(msg)
+	cmds = append(cmds, cmd)
 
-	return m, cmd
+	return m, tea.Batch(cmds...)
 }
 
 func (m Model) View() string {
 	m.styles.sidebar = focusedStyle(m.styles.sidebar, m.tree.Focused())
+	m.styles.mainTop = focusedStyle(m.styles.mainTop, m.editor.Focused())
 
 	sidebar := m.styles.sidebar.Render(m.tree.View())
 	sidebar = renderWithTitle(sidebar, "DB Navigator [1]", m.styles.sidebar)
 	mainTop := m.styles.mainTop.Render(m.editor.View())
-	mainBottom := m.styles.mainBottom.Render("Main Bottom Panel")
+	mainTop = renderWithTitle(mainTop, "Editor [2]", m.styles.mainTop)
+	mainBottom := m.styles.mainBottom.Render(m.result.View())
 	main := lipgloss.JoinVertical(lipgloss.Left, mainTop, mainBottom)
 
 	layout := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, main)
 	return layout
+}
+
+func (m *Model) focusPane(pane int) {
+	switch pane {
+	case PANE_DB_NAVIGATOR:
+		m.tree.Focus(true)
+		m.editor.Focus(false)
+	case PANE_EDITOR:
+		m.tree.Focus(false)
+		m.editor.Focus(true)
+	}
 }
 
 func renderWithTitle(view, title string, style lipgloss.Style) string {

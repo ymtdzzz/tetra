@@ -1,5 +1,7 @@
 package adapter
 
+import "context"
+
 type Status struct {
 	Opened         bool
 	DatabaseLoaded bool
@@ -39,4 +41,5 @@ type Adapter interface {
 	Close() error
 	ListDatabases() ([]string, error)
 	ListTables(database string) ([]string, error)
+	RunQuery(ctx context.Context, query string) (any, error)
 }

@@ -3,7 +3,9 @@ package app
 import "github.com/charmbracelet/bubbles/key"
 
 type keyMap struct {
-	quit key.Binding
+	quit          key.Binding
+	focusToDBNavi key.Binding
+	focusToEditor key.Binding
 }
 
 func defaultKeyMap() keyMap {
@@ -11,6 +13,12 @@ func defaultKeyMap() keyMap {
 		quit: key.NewBinding(
 			key.WithKeys("ctrl+c"),
 			key.WithHelp("^c", "quit"),
+		),
+		focusToDBNavi: key.NewBinding(
+			key.WithKeys("1"),
+		),
+		focusToEditor: key.NewBinding(
+			key.WithKeys("2"),
 		),
 	}
 }

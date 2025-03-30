@@ -13,6 +13,7 @@ type keyMap struct {
 	down           key.Binding
 	up             key.Binding
 	enter          key.Binding
+	selectNode     key.Binding
 }
 
 func defaultKeyMap() keyMap {
@@ -56,6 +57,10 @@ func defaultKeyMap() keyMap {
 		enter: key.NewBinding(
 			key.WithKeys("enter", "tab"),
 			key.WithHelp("enter/tab", "expand/collapse"),
+		),
+		selectNode: key.NewBinding(
+			key.WithKeys("ctrl+e"),
+			key.WithHelp("^e", "select node"),
 		),
 	}
 }
