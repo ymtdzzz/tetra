@@ -6,6 +6,7 @@ type styles struct {
 	sidebar    lipgloss.Style
 	mainTop    lipgloss.Style
 	mainBottom lipgloss.Style
+	menu       lipgloss.Style
 }
 
 func defaultStyles() styles {
@@ -21,10 +22,15 @@ func defaultStyles() styles {
 		Border(lipgloss.RoundedBorder()).
 		Padding(0, 1)
 
+	menu := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		Padding(0, 1)
+
 	return styles{
 		sidebar:    sidebar,
 		mainTop:    mainTop,
 		mainBottom: mainBottom,
+		menu:       menu,
 	}
 }
 

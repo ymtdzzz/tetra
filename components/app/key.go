@@ -6,6 +6,7 @@ type keyMap struct {
 	quit          key.Binding
 	focusToDBNavi key.Binding
 	focusToEditor key.Binding
+	focusToResult key.Binding
 }
 
 func defaultKeyMap() keyMap {
@@ -19,6 +20,9 @@ func defaultKeyMap() keyMap {
 		),
 		focusToEditor: key.NewBinding(
 			key.WithKeys("2"),
+		),
+		focusToResult: key.NewBinding(
+			key.WithKeys("3"),
 		),
 	}
 }

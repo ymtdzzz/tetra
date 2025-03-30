@@ -57,6 +57,9 @@ func (a *MySQLAdapter) Open() error {
 }
 
 func (a *MySQLAdapter) Close() error {
+	if a.db == nil {
+		return nil
+	}
 	err := a.db.Close()
 	if err != nil {
 		return err

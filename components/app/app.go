@@ -7,6 +7,8 @@ import (
 	"github.com/ymtdzzz/tetra/adapter"
 	"github.com/ymtdzzz/tetra/components"
 	"github.com/ymtdzzz/tetra/components/editor"
+	"github.com/ymtdzzz/tetra/components/menu"
+	"github.com/ymtdzzz/tetra/components/notification"
 	"github.com/ymtdzzz/tetra/components/result"
 	"github.com/ymtdzzz/tetra/components/tree"
 	"github.com/ymtdzzz/tetra/config"
@@ -20,15 +22,21 @@ import (
 const (
 	PANE_DB_NAVIGATOR = iota
 	PANE_EDITOR
+	PANE_RESULT
+	PANE_MENU
 )
 
 type Model struct {
-	styles  styles
-	keyMap  keyMap
-	dbConns adapter.DBConnections
-	tree    tree.Model
-	editor  editor.Model
-	result  result.Model
+	styles          styles
+	keyMap          keyMap
+	dbConns         adapter.DBConnections
+	tree            tree.Model
+	editor          editor.Model
+	result          result.Model
+	notifications   notification.Model
+	menu            menu.Model
+	currentFocus    int
+	beforeMenuFocus int
 }
 
 func New() (Model, error) {
@@ -42,12 +50,14 @@ func New() (Model, error) {
 	tree.Focus(true)
 
 	return Model{
-		styles:  defaultStyles(),
-		keyMap:  defaultKeyMap(),
-		dbConns: conns,
-		tree:    tree,
-		editor:  editor.New(),
-		result:  result.New(),
+		styles:        defaultStyles(),
+		keyMap:        defaultKeyMap(),
+		dbConns:       conns,
+		tree:          tree,
+		editor:        editor.New(),
+		result:        result.New(),
+		notifications: notification.New(),
+		menu:          menu.New(),
 	}, nil
 }
 
@@ -60,6 +70,8 @@ func (m Model) Init() tea.Cmd {
 		m.tree.Init(),
 		m.editor.Init(),
 		m.result.Init(),
+		m.notifications.Init(),
+		m.menu.Init(),
 	)
 }
 
@@ -79,6 +91,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 		case key.Matches(msg, m.keyMap.focusToEditor):
 			m.focusPane(PANE_EDITOR)
+			return m, nil
+		case key.Matches(msg, m.keyMap.focusToResult):
+			m.focusPane(PANE_RESULT)
 			return m, nil
 		}
 	case tea.WindowSizeMsg:
@@ -100,14 +115,25 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			mainWidth-m.styles.mainBottom.GetHorizontalFrameSize(),
 			mainBottomHeight-m.styles.mainBottom.GetVerticalFrameSize(),
 		)
+		m.notifications.UpdateLayout(width/3, height)
+		m.menu.UpdateLayout(width/3, height/2)
 	case components.FocusPaneEditorMsg:
 		m.focusPane(PANE_EDITOR)
+	case components.CloseMenuMsg:
+		m.focusPane(m.beforeMenuFocus)
+	case menu.ShowMenuMsg:
+		m.menu.SetItems(msg.Items)
+		m.focusPane(PANE_MENU)
 	}
 	m.tree, cmd = m.tree.Update(msg)
 	cmds = append(cmds, cmd)
 	m.editor, cmd = m.editor.Update(msg)
 	cmds = append(cmds, cmd)
 	m.result, cmd = m.result.Update(msg)
+	cmds = append(cmds, cmd)
+	m.notifications, cmd = m.notifications.Update(msg)
+	cmds = append(cmds, cmd)
+	m.menu, cmd = m.menu.Update(msg)
 	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
@@ -116,26 +142,56 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (m Model) View() string {
 	m.styles.sidebar = focusedStyle(m.styles.sidebar, m.tree.Focused())
 	m.styles.mainTop = focusedStyle(m.styles.mainTop, m.editor.Focused())
+	m.styles.mainBottom = focusedStyle(m.styles.mainBottom, m.result.Focused())
 
 	sidebar := m.styles.sidebar.Render(m.tree.View())
 	sidebar = renderWithTitle(sidebar, "DB Navigator [1]", m.styles.sidebar)
 	mainTop := m.styles.mainTop.Render(m.editor.View())
-	mainTop = renderWithTitle(mainTop, "Editor [2]", m.styles.mainTop)
+	mainTop = renderWithTitle(mainTop, "SQL Editor [2]", m.styles.mainTop)
 	mainBottom := m.styles.mainBottom.Render(m.result.View())
+	mainBottom = renderWithTitle(mainBottom, "Result [3]", m.styles.mainBottom)
 	main := lipgloss.JoinVertical(lipgloss.Left, mainTop, mainBottom)
+	menu := m.styles.menu.Render(m.menu.View())
+	if !m.menu.Focused() {
+		menu = ""
+	}
 
 	layout := lipgloss.JoinHorizontal(lipgloss.Top, sidebar, main)
-	return layout
+
+	layoutWithMenu := composite(menu, layout, Center, Center, 0, 0)
+	layoutWithNotification := composite(m.notifications.View(), layoutWithMenu, Right, Bottom, 0, 0)
+
+	return layoutWithNotification
 }
 
 func (m *Model) focusPane(pane int) {
+	m.beforeMenuFocus = m.currentFocus
+
 	switch pane {
 	case PANE_DB_NAVIGATOR:
 		m.tree.Focus(true)
 		m.editor.Focus(false)
+		m.result.Focus(false)
+		m.menu.Focus(false)
+		m.currentFocus = PANE_DB_NAVIGATOR
 	case PANE_EDITOR:
 		m.tree.Focus(false)
 		m.editor.Focus(true)
+		m.result.Focus(false)
+		m.menu.Focus(false)
+		m.currentFocus = PANE_EDITOR
+	case PANE_RESULT:
+		m.tree.Focus(false)
+		m.editor.Focus(false)
+		m.result.Focus(true)
+		m.menu.Focus(false)
+		m.currentFocus = PANE_RESULT
+	case PANE_MENU:
+		m.tree.Focus(false)
+		m.editor.Focus(false)
+		m.result.Focus(false)
+		m.menu.Focus(true)
+		m.currentFocus = PANE_MENU
 	}
 }
 

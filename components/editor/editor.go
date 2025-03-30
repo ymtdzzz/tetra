@@ -9,6 +9,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/ymtdzzz/tetra/adapter"
+	"github.com/ymtdzzz/tetra/components/notification"
 	"github.com/ymtdzzz/tetra/components/result"
 )
 
@@ -75,7 +76,9 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 				res, err := m.conn.Adapter.RunQuery(context.Background(), m.textarea.Value())
 				// TODO: handle error
 				if err != nil {
-					panic(err)
+					return notification.NotificationMsg{
+						Message: err.Error(),
+					}
 				}
 				if r, ok := res.([]map[string]any); ok {
 					return result.QueryResultMsg{
@@ -97,7 +100,7 @@ func (m Model) View() string {
 	if m.conn == nil {
 		style := lipgloss.NewStyle().
 			Width(m.textarea.Width() + 6).
-			Height(m.textarea.Height())
+			Height(m.textarea.Height() + 1)
 		return style.Render("No Database connection selected\nPress '^e' in the tree to select a connection")
 	}
 	return lipgloss.JoinVertical(
