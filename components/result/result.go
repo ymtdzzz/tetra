@@ -1,22 +1,33 @@
 package result
 
 import (
+	"fmt"
+
+	"github.com/atotto/clipboard"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/evertras/bubble-table/table"
+	"github.com/ymtdzzz/tetra/adapter"
+	"github.com/ymtdzzz/tetra/components/menu"
+	"github.com/ymtdzzz/tetra/components/notification"
 )
 
 type Model struct {
+	keyMap        keyMap
 	focus         bool
 	table         table.Model
+	rows          []table.Row
 	width, height int
 }
 
 func New() Model {
-	table := table.New([]table.Column{}).WithMaxTotalWidth(30).WithPageSize(5)
+	t := table.New([]table.Column{}).WithMaxTotalWidth(30).WithPageSize(5)
 
 	return Model{
-		table: table,
+		keyMap: defaultKeyMap(),
+		table:  t,
+		rows:   []table.Row{},
 	}
 }
 
@@ -58,10 +69,19 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 			rows[i] = table.NewRow(r)
 		}
 		m.table = m.table.WithColumns(cols).WithRows(rows)
+		m.rows = rows
 	}
 
 	if !m.focus {
 		return m, tea.Batch(cmds...)
+	}
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch {
+		case key.Matches(msg, m.keyMap.showContextMenu):
+			cmds = append(cmds, m.showContextMenuCmd())
+		}
 	}
 
 	m.table, cmd = m.table.Update(msg)
@@ -71,7 +91,7 @@ func (m Model) Update(msg tea.Msg) (Model, tea.Cmd) {
 }
 
 func (m Model) View() string {
-	if m.table.TotalRows() == 0 {
+	if !m.hasResult() {
 		style := lipgloss.NewStyle().
 			Width(m.width).
 			Height(m.height)
@@ -87,4 +107,35 @@ func (m *Model) UpdateLayout(width, height int) {
 
 	m.table = m.table.WithMaxTotalWidth(width)
 	m.table = m.table.WithPageSize(height - 6)
+}
+
+func (m Model) showContextMenuCmd() tea.Cmd {
+	return func() tea.Msg {
+		items := []menu.Item{}
+
+		if m.hasResult() {
+			items = append(items, menu.Item{
+				Label: "Copy as CSV",
+				Key:   key.NewBinding(key.WithKeys("y")),
+				Callback: func() tea.Msg {
+					err := clipboard.WriteAll(adapter.ConvertResultToCSV(m.rows))
+					msg := "Copied as CSV!"
+					if err != nil {
+						msg = fmt.Sprintf("Failed to copy as CSV: %s", err)
+					}
+					return notification.NotificationMsg{
+						Message: msg,
+					}
+				},
+			})
+		}
+
+		return menu.ShowMenuMsg{
+			Items: items,
+		}
+	}
+}
+
+func (m Model) hasResult() bool {
+	return m.table.TotalRows() > 0
 }

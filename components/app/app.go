@@ -103,6 +103,8 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		mainTopHeight := height / 2
 		mainBottomHeight := height - mainTopHeight
 
+		m.styles.mainBottom = m.styles.mainBottom.Width(mainWidth - 2)
+
 		m.tree.UpdateLayout(
 			sidebarWidth-m.styles.sidebar.GetHorizontalFrameSize(),
 			height-m.styles.sidebar.GetVerticalFrameSize(),
